@@ -30,22 +30,10 @@ module IO = struct
 
   let iter fn x = Lwt_list.iter_s fn x
 
-  let copy_buffers bufs =
-    (* concatenate all the buffers together into one big string *)
-    let s = String.create (List.fold_left (+) 0 (List.map Cstruct.len bufs)) in
-    let ofs = ref 0 in
-    List.iter
-      (fun buf ->
-        let len = Cstruct.len buf in
-        Cstruct.blit_to_string buf 0 s !ofs len;
-        ofs := !ofs + len
-      ) bufs;
-    s
-
   let read_line ic =
     match_lwt Channel.read_line ic with
     |[] -> return None
-    |bufs -> return (Some (copy_buffers bufs))
+    |bufs -> return (Some (Cstruct.copyv bufs))
 
   let read ic len = 
    try_lwt
@@ -64,7 +52,7 @@ module IO = struct
     in
     lwt iov = read [] len in
     (* XXX TODO this is hyper slow! *)
-    let srcbuf = copy_buffers iov in
+    let srcbuf = Cstruct.copyv iov in
     String.blit srcbuf 0 buf off (String.length srcbuf);
     return true
 
